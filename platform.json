@@ -1,0 +1,56 @@
+{
+  "name": "orbite",
+  "title": "ORBITE-I",
+  "description": "ORBITE-I flight computer (CORE-I, STM32F405VGT6) with the Arduino framework (STM32duino): board definition, ORBITE_CORE variant, Orbite library, USB upload through the TinyUF2 bootloader, ST-Link upload and debug, bootloader burning.",
+  "homepage": "https://github.com/Arkyos03/ORBITE-I-Arduino",
+  "license": "MIT",
+  "keywords": ["dev-platform", "ARM", "Cortex-M", "STM32", "STM32F405", "rocketry", "flight computer", "ORBITE-I"],
+  "engines": {
+    "platformio": "^6"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Arkyos03/platform-orbite.git"
+  },
+  "version": "1.0.0",
+  "frameworks": {
+    "arduino": {
+      "package": "framework-arduinoststm32",
+      "script": "builder/frameworks/arduino.py"
+    }
+  },
+  "packages": {
+    "toolchain-gccarmnoneeabi": {
+      "type": "toolchain",
+      "owner": "platformio",
+      "version": "~1.120301.0"
+    },
+    "framework-arduinoststm32": {
+      "type": "framework",
+      "owner": "platformio",
+      "version": "4.30000.0"
+    },
+    "framework-cmsis": {
+      "type": "framework",
+      "owner": "platformio",
+      "version": "~2.60300.0"
+    },
+    "framework-cmsis-dsp": {
+      "type": "framework",
+      "owner": "platformio",
+      "version": "~1.16.2"
+    },
+    "tool-openocd": {
+      "type": "uploader",
+      "optional": true,
+      "owner": "platformio",
+      "version": "~3.1200.7"
+    },
+    "tool-jlink": {
+      "type": "uploader",
+      "optional": true,
+      "owner": "platformio",
+      "version": "^1.92000.0"
+    }
+  }
+}

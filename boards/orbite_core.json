@@ -1,0 +1,37 @@
+{
+  "build": {
+    "arduino": {
+      "board": "ORBITE_CORE",
+      "variant_h": "variant_ORBITE_CORE.h"
+    },
+    "core": "stm32",
+    "cpu": "cortex-m4",
+    "extra_flags": "-DSTM32F4 -DSTM32F405xx -DSTM32F4xx -DHSE_VALUE=8000000U -DORBITE_I",
+    "f_cpu": "168000000L",
+    "flash_offset": "0x10000",
+    "hwids": [
+      ["0x1209", "0x0003"],
+      ["0x1209", "0x0002"]
+    ],
+    "mcu": "stm32f405vgt6",
+    "product_line": "STM32F405xx",
+    "variant": "ORBITE_CORE"
+  },
+  "debug": {
+    "default_tools": ["stlink"],
+    "jlink_device": "STM32F405VG",
+    "openocd_target": "stm32f4x",
+    "svd_path": "STM32F40x.svd"
+  },
+  "frameworks": ["arduino"],
+  "name": "ORBITE-I CORE (STM32F405)",
+  "upload": {
+    "maximum_ram_size": 131072,
+    "maximum_size": 983040,
+    "offset_address": "0x08010000",
+    "protocol": "uf2",
+    "protocols": ["uf2", "stlink", "jlink", "blackmagic"]
+  },
+  "url": "https://github.com/Arkyos03/ORBITE-I-Arduino",
+  "vendor": "Arkyos03"
+}
