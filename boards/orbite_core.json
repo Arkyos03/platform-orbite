@@ -6,7 +6,7 @@
     },
     "core": "stm32",
     "cpu": "cortex-m4",
-    "extra_flags": "-DSTM32F4 -DSTM32F405xx -DSTM32F4xx -DHSE_VALUE=8000000U -DORBITE_I",
+    "extra_flags": "-DSTM32F4 -DSTM32F405xx -DSTM32F4xx -DHSE_VALUE=8000000U -DORBITE_I -DSERIAL_RX_BUFFER_SIZE=256",
     "f_cpu": "168000000L",
     "flash_offset": "0x10000",
     "hwids": [

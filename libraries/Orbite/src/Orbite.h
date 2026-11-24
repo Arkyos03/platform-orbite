@@ -173,6 +173,7 @@ public:
   float    gpsAltitude()  { return _gpsAlt; }   /* m above sea level */
   uint8_t  gpsSatellites(){ return _gpsSats; }
   float    gpsHdop()      { return _gpsHdop; }
+  uint32_t gpsBaud()      { return _gpsBaud; }   /* vitesse du GPS trouvée par begin() (0 = muet) */
   uint32_t gpsAge();                            /* ms since the last position */
   const char *gpsTime()   { return _gpsTime; }  /* "hhmmss" UTC */
 
@@ -320,6 +321,7 @@ private:
   bool _gpsFix = false;
   double _gpsLat = 0, _gpsLon = 0;
   float _gpsAlt = 0, _gpsHdop = 99;
+  uint32_t _gpsBaud = 0;
   uint8_t _gpsSats = 0;
   uint32_t _gpsMs = 0;
   char _gpsTime[7] = "000000";

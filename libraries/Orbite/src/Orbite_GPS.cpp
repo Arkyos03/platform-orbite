@@ -4,7 +4,7 @@
  */
 #include "Orbite.h"
 
-/* UBX-CFG-VALSET in RAM : dynamic model "airborne < 4 g" and 5 Hz navigation rate */
+/* Envoi d'une trame UBX (classe, id, charge utile) avec sa somme de contrôle */
 static void ubxSend(const uint8_t *payload, uint16_t len, uint8_t cls, uint8_t id)
 {
   uint8_t ckA = 0, ckB = 0;
@@ -17,17 +17,75 @@ static void ubxSend(const uint8_t *payload, uint16_t len, uint8_t cls, uint8_t i
   Serial2.write(ckB);
 }
 
+/* true si des phrases NMEA ("$G...") arrivent à cette vitesse pendant window_ms */
+static bool gpsListen(uint32_t baud, uint32_t window_ms)
+{
+  Serial2.end();
+  Serial2.begin(baud);
+  while (Serial2.available()) Serial2.read();
+  uint32_t t0 = millis();
+  bool dollar = false;
+  uint8_t hits = 0;
+  while (millis() - t0 < window_ms) {
+    while (Serial2.available()) {
+      char c = Serial2.read();
+      if (dollar && c == 'G' && ++hits >= 2) return true;
+      dollar = (c == '$');
+    }
+  }
+  return false;
+}
+
+/*
+ * Le MAX-M10S sort d'usine à 9600 Bd. Une fois configuré, il garde GPS_BAUD en RAM tant
+ * qu'il reste alimenté (cas d'un reset du STM32 en vol) : on essaie donc GPS_BAUD d'abord,
+ * puis 9600 (usine), puis 115200. Ensuite (sauf édition passive) : passage à GPS_BAUD,
+ * modèle « aéroporté < 4 g », navigation à 5 Hz et sorties NMEA réduites (GGA, RMC, GSA
+ * à 5 Hz, GSV à 1 Hz, sans GLL ni VTG) pour tenir dans le débit à 38400 Bd.
+ * Durée : ~0,1 s si le GPS est déjà configuré, ~1,5 s à la première mise sous tension,
+ * ~3,5 s s'il ne répond pas (BEACON-I absente).
+ */
 void OrbiteBoard::gpsBegin()
 {
-  Serial2.begin(GPS_BAUD);
-  if (_passive) return; // Observe the receiver as configured; do not claim an unacknowledged configuration.
-  delay(10);
+  static const uint32_t candidates[] = {GPS_BAUD, 9600, 115200};
+  _gpsBaud = 0;
+  for (uint32_t b : candidates) {
+    if (gpsListen(b, 1100)) {
+      _gpsBaud = b;
+      break;
+    }
+  }
+  if (_gpsBaud == 0) {                         /* pas de GPS : on écoute quand même à GPS_BAUD */
+    Serial2.end();
+    Serial2.begin(GPS_BAUD);
+    return;
+  }
+  if (_passive) return;                        /* édition passive : on écoute, on ne configure pas */
+
   const uint8_t valset[] = {
-    0x00, 0x01, 0x00, 0x00,                    /* version 0, layer RAM, reserved */
-    0x21, 0x00, 0x11, 0x20, 0x08,              /* CFG-NAVSPG-DYNMODEL = 8 (airborne < 4 g) */
-    0x01, 0x00, 0x21, 0x30, 0xC8, 0x00,        /* CFG-RATE-MEAS = 200 ms (5 Hz) */
+    0x00, 0x01, 0x00, 0x00,                                    /* version 0, couche RAM */
+    0x01, 0x00, 0x52, 0x40,                                    /* CFG-UART1-BAUDRATE = GPS_BAUD */
+    (uint8_t)(GPS_BAUD), (uint8_t)(GPS_BAUD >> 8), (uint8_t)(GPS_BAUD >> 16), (uint8_t)(GPS_BAUD >> 24),
+    0x21, 0x00, 0x11, 0x20, 0x08,                              /* CFG-NAVSPG-DYNMODEL = 8 (aéroporté < 4 g) */
+    0x01, 0x00, 0x21, 0x30, 0xC8, 0x00,                        /* CFG-RATE-MEAS = 200 ms (5 Hz) */
+    0xBB, 0x00, 0x91, 0x20, 0x01,                              /* NMEA GGA à chaque mesure */
+    0xAC, 0x00, 0x91, 0x20, 0x01,                              /* NMEA RMC à chaque mesure */
+    0xC0, 0x00, 0x91, 0x20, 0x01,                              /* NMEA GSA à chaque mesure */
+    0xC5, 0x00, 0x91, 0x20, 0x05,                              /* NMEA GSV 1 mesure sur 5 (1 Hz) */
+    0xCA, 0x00, 0x91, 0x20, 0x00,                              /* NMEA GLL coupé */
+    0xB1, 0x00, 0x91, 0x20, 0x00,                              /* NMEA VTG coupé */
   };
   ubxSend(valset, sizeof(valset), 0x06, 0x8A);
+  Serial2.flush();                             /* attend la fin de l'envoi */
+  delay(50);                                   /* le module change de vitesse après son ACK */
+  if (_gpsBaud != GPS_BAUD) {
+    if (gpsListen(GPS_BAUD, 1100)) {
+      _gpsBaud = GPS_BAUD;
+    } else {                                   /* refus : on reste à la vitesse trouvée */
+      Serial2.end();
+      Serial2.begin(_gpsBaud);
+    }
+  }
 }
 
 static double nmeaCoord(const char *s, const char *hemi)
