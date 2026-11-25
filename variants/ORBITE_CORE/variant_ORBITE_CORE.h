@@ -201,10 +201,12 @@
 #define LSM6DSOX_INT1           PD10
 #define CS_MAG                  PB12
 
-/* SPI3 : LoRa E22-900M22S (BEACON-I) + flash W25Q128 (CORE-I) */
-#define SPI3_SCLK               PB3
-#define SPI3_MISO               PB4
-#define SPI3_MOSI               PB5
+/* SPI3 : LoRa E22-900M22S (BEACON-I) + flash W25Q128 (CORE-I)
+ * PB3/PB4/PB5 servent aussi à SPI1 : sans _ALT1, SPIClass prendrait SPI1 (AF5), déjà câblé
+ * sur PA5/PA6/PA7, et les deux MISO se mélangeraient (lecture 0xFF). _ALT1 = SPI3 (AF6). */
+#define SPI3_SCLK               PB3_ALT1
+#define SPI3_MISO               PB4_ALT1
+#define SPI3_MOSI               PB5_ALT1
 #define CS_LORA                 PD1
 #define LORA_RST                PD3
 #define LORA_BUSY               PD4

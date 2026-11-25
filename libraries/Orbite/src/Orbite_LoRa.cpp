@@ -151,6 +151,10 @@ bool OrbiteBoard::loraBegin(float frequencyMHz, int8_t powerDbm, uint8_t spreadi
   /* TCXO on DIO3 at 1.8 V, 5 ms start-up, then full calibration */
   uint8_t tcxo[4] = {0x02, 0x00, 0x01, 0x40};          /* 1.8 V, 320 x 15.625 us = 5 ms */
   sxCmd(SX_SET_DIO3_TCXO, tcxo, 4);
+  /* XOSC_START_ERR est toujours levé à la mise sous tension (avant la commande TCXO) :
+   * on l'efface, sinon la calibration semble avoir échoué alors que le TCXO tourne. */
+  uint8_t clr0[2] = {0x00, 0x00};
+  sxCmd(SX_CLEAR_DEVICE_ERRORS, clr0, 2);
   uint8_t cal = 0x7F;
   sxCmd(SX_CALIBRATE, &cal, 1);
   delay(5);
@@ -164,6 +168,7 @@ bool OrbiteBoard::loraBegin(float frequencyMHz, int8_t powerDbm, uint8_t spreadi
     delay(10);
     waitBusy(200);
     sxStandby();
+    sxCmd(SX_CLEAR_DEVICE_ERRORS, clr, 2);           /* idem après ce second reset */
     sxCmd(SX_CALIBRATE, &cal, 1);
     delay(5);
     waitBusy(100);
