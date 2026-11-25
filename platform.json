@@ -12,7 +12,7 @@
     "type": "git",
     "url": "https://github.com/Arkyos03/platform-orbite.git"
   },
-  "version": "1.0.2",
+  "version": "1.0.3",
   "frameworks": {
     "arduino": {
       "package": "framework-arduinoststm32",
