@@ -143,10 +143,13 @@ void OrbiteBoard::msTask()
 
 /* ===================================================================== BMP390 (SPI2) */
 
+/* CHIP_ID : BMP390 = 0x60, BMP388 = 0x50 (same registers, same compensation) */
+static bool bmpId(uint8_t id) { return id == 0x60 || id == 0x50; }
+
 bool OrbiteBoard::bmpBegin()
 {
   spiRead8(OrbiteSPI2, SPI_BMP, CS_BMP390, 0x00, true);       /* first access : wake up SPI */
-  if (spiRead8(OrbiteSPI2, SPI_BMP, CS_BMP390, 0x00, true) != 0x60) return false;
+  if (!bmpId(spiRead8(OrbiteSPI2, SPI_BMP, CS_BMP390, 0x00, true))) return false;
   spiWrite8(OrbiteSPI2, SPI_BMP, CS_BMP390, 0x7E, 0xB6);      /* soft reset */
   delay(10);
 
@@ -177,7 +180,7 @@ bool OrbiteBoard::bmpBegin()
 
 bool OrbiteBoard::bmpRead()
 {
-  if (_passive && (spiRead8(OrbiteSPI2, SPI_BMP, CS_BMP390, 0x00, true) != 0x60 ||
+  if (_passive && (!bmpId(spiRead8(OrbiteSPI2, SPI_BMP, CS_BMP390, 0x00, true)) ||
       (spiRead8(OrbiteSPI2, SPI_BMP, CS_BMP390, 0x03, true) & 0x60) != 0x60)) return false;
   uint8_t d[6];
   spiRead(OrbiteSPI2, SPI_BMP, CS_BMP390, 0x04, d, 6, true);
@@ -387,39 +390,111 @@ float OrbiteBoard::gForce()
 
 /* ===================================================================== MMC5983MA (SPI2, BEACON-I) */
 
+/*
+ * Offset compensation : the sensor bridge has an offset of up to a few tenths of a gauss. After a SET
+ * pulse the output is +B + offset, after a RESET pulse -B + offset, so offset = (SET + RESET) / 2 and
+ * B = (SET - RESET) / 2. The offset is measured at start-up, then again every MAG_CAL_EVERY measurements
+ * (it drifts with temperature). In between, the sensor stays in the SET state and B = SET - offset.
+ */
+static const uint8_t MAG_CAL_EVERY = 100;   /* ~1 s at 100 Hz */
+
+static bool magReadField(float b[3])
+{
+  if (!(spiRead8(OrbiteSPI2, SPI_MAG, CS_MAG, 0x08) & 0x01)) return false;   /* Meas_M_Done */
+  uint8_t d[7];
+  spiRead(OrbiteSPI2, SPI_MAG, CS_MAG, 0x00, d, 7);
+  uint32_t r[3] = {((uint32_t)d[0] << 10) | ((uint32_t)d[1] << 2) | ((d[6] >> 6) & 0x03),
+                   ((uint32_t)d[2] << 10) | ((uint32_t)d[3] << 2) | ((d[6] >> 4) & 0x03),
+                   ((uint32_t)d[4] << 10) | ((uint32_t)d[5] << 2) | ((d[6] >> 2) & 0x03)};
+  for (int i = 0; i < 3; i++) b[i] = ((float)r[i] - 131072.0f) / 16384.0f;
+  return true;
+}
+
+static void magPulse(uint8_t bit)          /* 0x08 = SET, 0x10 = RESET */
+{
+  spiWrite8(OrbiteSPI2, SPI_MAG, CS_MAG, 0x09, bit);
+  delayMicroseconds(500);
+}
+
+static bool magMeasureNow(float b[3])
+{
+  spiWrite8(OrbiteSPI2, SPI_MAG, CS_MAG, 0x09, 0x01);           /* TM_M */
+  uint32_t t0 = millis();
+  while (millis() - t0 < 20)
+    if (magReadField(b)) return true;
+  return false;
+}
+
 bool OrbiteBoard::magBegin()
 {
   /* R/W bit is bit 7 (1 = read), like the other chips */
   spiWrite8(OrbiteSPI2, SPI_MAG, CS_MAG, 0x0A, 0x80);           /* SW_RST */
   delay(15);
   if (spiRead8(OrbiteSPI2, SPI_MAG, CS_MAG, 0x2F) != 0x30) return false;
-  spiWrite8(OrbiteSPI2, SPI_MAG, CS_MAG, 0x09, 0x08);           /* SET pulse */
-  delay(1);
+  float r[3];
+  magPulse(0x08);                                               /* SET */
+  if (!magMeasureNow(_magSet)) return false;
+  magPulse(0x10);                                               /* RESET */
+  if (!magMeasureNow(r)) return false;
+  for (int i = 0; i < 3; i++) _magOff[i] = (_magSet[i] + r[i]) / 2;
+  magPulse(0x08);                                               /* back to SET */
+  _mx = _magSet[0] - _magOff[0];
+  _my = _magSet[1] - _magOff[1];
+  _mz = _magSet[2] - _magOff[2];
   _magStep = 0;
+  _magCount = 0;
   return true;
 }
 
+/* steps : 0 start a measurement / 1 read it (SET state)
+ *         2 read the SET measurement, RESET, start / 3 read the RESET measurement, SET, update the offset */
 void OrbiteBoard::magTask()
 {
   if (!_magOK) return;
   if (_magStep == 0) {
+    if (++_magCount >= MAG_CAL_EVERY) {
+      _magCount = 0;
+      magPulse(0x08);                                           /* SET before the first offset measurement */
+      _magStep = 2;
+    } else {
+      _magStep = 1;
+    }
     spiWrite8(OrbiteSPI2, SPI_MAG, CS_MAG, 0x09, 0x01);         /* TM_M : start a measurement */
     _magT0 = millis();
-    _magStep = 1;
-  } else if (millis() - _magT0 >= 10) {
-    if ((!_passive || spiRead8(OrbiteSPI2, SPI_MAG, CS_MAG, 0x2F) == 0x30) &&
-        (spiRead8(OrbiteSPI2, SPI_MAG, CS_MAG, 0x08) & 0x01)) {   /* Meas_M_Done */
-      uint8_t d[7];
-      spiRead(OrbiteSPI2, SPI_MAG, CS_MAG, 0x00, d, 7);
-      uint32_t x = ((uint32_t)d[0] << 10) | ((uint32_t)d[1] << 2) | ((d[6] >> 6) & 0x03);
-      uint32_t y = ((uint32_t)d[2] << 10) | ((uint32_t)d[3] << 2) | ((d[6] >> 4) & 0x03);
-      uint32_t z = ((uint32_t)d[4] << 10) | ((uint32_t)d[5] << 2) | ((d[6] >> 2) & 0x03);
-      _mx = ((float)x - 131072.0f) / 16384.0f;
-      _my = ((float)y - 131072.0f) / 16384.0f;
-      _mz = ((float)z - 131072.0f) / 16384.0f;
+    return;
+  }
+  if (millis() - _magT0 < 10) return;
+  if (_passive && spiRead8(OrbiteSPI2, SPI_MAG, CS_MAG, 0x2F) != 0x30) {
+    if (_magStep == 3) magPulse(0x08);
+    _magStep = 0;
+    return;
+  }
+  float b[3];
+  bool ok = magReadField(b);
+  if (_magStep == 1) {
+    if (ok) {
+      _mx = b[0] - _magOff[0];
+      _my = b[1] - _magOff[1];
+      _mz = b[2] - _magOff[2];
       _magStamp.mark(millis());
     }
     _magStep = 0;
+  } else if (_magStep == 2) {
+    if (!ok) { _magStep = 0; return; }
+    for (int i = 0; i < 3; i++) _magSet[i] = b[i];
+    magPulse(0x10);                                             /* RESET */
+    spiWrite8(OrbiteSPI2, SPI_MAG, CS_MAG, 0x09, 0x01);
+    _magT0 = millis();
+    _magStep = 3;
+  } else {                                                      /* step 3 : RESET reading */
+    magPulse(0x08);                                             /* back to SET in any case */
+    _magStep = 0;
+    if (!ok) return;
+    for (int i = 0; i < 3; i++) _magOff[i] = (_magSet[i] + b[i]) / 2;
+    _mx = (_magSet[0] - b[0]) / 2;
+    _my = (_magSet[1] - b[1]) / 2;
+    _mz = (_magSet[2] - b[2]) / 2;
+    _magStamp.mark(millis());
   }
 }
 

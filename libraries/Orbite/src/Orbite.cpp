@@ -432,7 +432,7 @@ OrbiteError OrbiteBoard::selfTest(bool needSdCard, bool needBattery, uint8_t pyr
 
   Serial.println(F("=== ORBITE-I : auto-test ==="));
   Serial.print(F("MS5611    : ")); Serial.println(_msOK ? F("OK") : F("absent"));
-  Serial.print(F("BMP390    : ")); Serial.println(_bmpOK ? F("OK") : F("absent"));
+  Serial.print(F("BMP390/388: ")); Serial.println(_bmpOK ? F("OK") : F("absent"));
   Serial.print(F("BMI088    : ")); Serial.println(_bmiOK ? F("OK") : F("absent"));
   Serial.print(F("LSM6DSOX  : ")); Serial.println(_lsmOK ? F("OK") : F("absent"));
   Serial.print(F("MMC5983MA : ")); Serial.println(_magOK ? F("OK") : F("absent"));

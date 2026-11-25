@@ -143,7 +143,7 @@ public:
   float altitudeMS5611();                       /* m above the ground, NAN if absent */
   float altitudeBMP390();
   bool  ms5611OK() { return _msOK; }
-  bool  bmp390OK() { return _bmpOK; }
+  bool  bmp390OK() { return _bmpOK; }          /* BMP390 or BMP388 */
 
   /* ============================================================= IMUs
    * BMI088 (SPI1, ±24 g, ±2000 °/s) is used first, LSM6DSOX (SPI2, ±16 g) otherwise. */
@@ -313,7 +313,8 @@ private:
   uint32_t _imuLast = 0;
   /* magnetometer */
   float _mx = 0, _my = 0, _mz = 0;
-  uint8_t _magStep = 0;
+  float _magOff[3] = {0, 0, 0}, _magSet[3] = {0, 0, 0};   /* MMC5983MA bridge offset, SET reading */
+  uint8_t _magStep = 0, _magCount = 0;
   uint32_t _magT0 = 0;
   /* GPS */
   char _gpsBuf[100];
