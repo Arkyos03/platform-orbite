@@ -24,6 +24,7 @@
 #include <Arduino.h>
 #include <SPI.h>
 #include "Orbite_Data.h"
+#include "Orbite_Baro.h"
 #include "Orbite_Nmea.h"
 
 #if !defined(ARDUINO_ORBITE_CORE)
@@ -142,7 +143,13 @@ public:
   float verticalSpeed();                        /* m/s, > 0 going up (filtered) */
   float altitudeMS5611();                       /* m above the ground, NAN if absent */
   float altitudeBMP390();
-  bool  ms5611OK() { return _msOK; }
+  bool  ms5611OK() { return _msOK; }           /* MS5611 or MS5607 */
+  /* MS5611 and MS5607 share the pinout and the SPI commands, not the compensation formulas.
+   * MS56XX_AUTO (default) : at begin(), the formula that agrees with the BMP390/388 is kept
+   * (MS5611 if the BMP is absent). Force the part with setMs56xx() BEFORE begin(). */
+  void  setMs56xx(orbite::Ms56xx model) { _msModel = model; }
+  orbite::Ms56xx ms56xx() { return _msModel; }
+  const char *ms56xxName() { return _msModel == orbite::MS56XX_5607 ? "MS5607" : "MS5611"; }
   bool  bmp390OK() { return _bmpOK; }          /* BMP390 or BMP388 */
 
   /* ============================================================= IMUs
@@ -296,6 +303,7 @@ private:
 
   /* MS5611 */
   uint16_t _msC[8];
+  orbite::Ms56xx _msModel = orbite::MS56XX_AUTO;
   uint8_t  _msStep = 0;
   uint32_t _msT0 = 0, _msD1 = 0, _msD2 = 0;
   float _msP = NAN, _msT = NAN, _msGround = NAN;

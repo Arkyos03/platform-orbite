@@ -65,6 +65,9 @@ bool OrbiteBoard::begin()
 
   _msOK  = msBegin();
   _bmpOK = bmpBegin();
+  /* MS5611 or MS5607 ? same PROM, different formulas : keep the one that agrees with the BMP */
+  if (_msOK && _msModel == orbite::MS56XX_AUTO)
+    _msModel = orbite::ms56xxGuess(_msC, _msD1, _msD2, _bmpOK ? _bmpP : NAN);
   _bmiOK = bmiBegin();
   _lsmOK = lsmBegin();
   _magOK = magBegin();
@@ -431,7 +434,7 @@ OrbiteError OrbiteBoard::selfTest(bool needSdCard, bool needBattery, uint8_t pyr
   float vpyro = pyroVoltage();
 
   Serial.println(F("=== ORBITE-I : auto-test ==="));
-  Serial.print(F("MS5611    : ")); Serial.println(_msOK ? F("OK") : F("absent"));
+  Serial.print(F("MS5611/07 : ")); Serial.println(_msOK ? ms56xxName() : "absent");
   Serial.print(F("BMP390/388: ")); Serial.println(_bmpOK ? F("OK") : F("absent"));
   Serial.print(F("BMI088    : ")); Serial.println(_bmiOK ? F("OK") : F("absent"));
   Serial.print(F("LSM6DSOX  : ")); Serial.println(_lsmOK ? F("OK") : F("absent"));

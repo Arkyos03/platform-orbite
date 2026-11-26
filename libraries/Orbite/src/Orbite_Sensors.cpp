@@ -115,24 +115,9 @@ void OrbiteBoard::msTask()
     _msD1 = msRead(0x00, 3);
     msCommand(0x58);
     _msStep = 0;
-    /* compensation with second order (datasheet MS5611-01BA03) */
-    int64_t dT = (int64_t)_msD2 - ((int64_t)_msC[5] << 8);
-    int64_t temp = 2000 + ((dT * _msC[6]) >> 23);
-    int64_t off = ((int64_t)_msC[2] << 16) + (((int64_t)_msC[4] * dT) >> 7);
-    int64_t sens = ((int64_t)_msC[1] << 15) + (((int64_t)_msC[3] * dT) >> 8);
-    if (temp < 2000) {
-      int64_t t2 = (dT * dT) >> 31;
-      int64_t off2 = 5 * (temp - 2000) * (temp - 2000) / 2;
-      int64_t sens2 = 5 * (temp - 2000) * (temp - 2000) / 4;
-      if (temp < -1500) {
-        off2 += 7 * (temp + 1500) * (temp + 1500);
-        sens2 += 11 * (temp + 1500) * (temp + 1500) / 2;
-      }
-      temp -= t2; off -= off2; sens -= sens2;
-    }
-    int64_t p = ((((int64_t)_msD1 * sens) >> 21) - off) >> 15;
-    if (_msD1 != 0 && _msD1 != 0xFFFFFF && _msD2 != 0 && _msD2 != 0xFFFFFF &&
-        p >= 1000 && p <= 120000 && temp >= -6000 && temp <= 10000) {
+    /* compensation with second order (datasheets MS5611-01BA03 / MS5607-02BA03) */
+    int32_t p, temp;
+    if (orbite::ms56xxCompensate(_msModel, _msC, _msD1, _msD2, p, temp)) {
       _msP = (float)p;              /* Pa */
       _msT = temp / 100.0f;
       _msStamp.mark(millis());
