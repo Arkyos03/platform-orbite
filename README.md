@@ -58,7 +58,7 @@ void loop() {
 **Upload** (→) téléverse par USB, **Serial Monitor** ouvre le port série. Pour qu'un projet installe lui-même la plateforme sur un autre ordinateur, en version figée :
 
 ```ini
-platform = https://github.com/Arkyos03/platform-orbite.git#v1.0.3
+platform = https://github.com/Arkyos03/platform-orbite.git#v1.0.4
 ```
 
 ## Exemples
